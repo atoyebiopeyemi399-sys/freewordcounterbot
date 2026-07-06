@@ -1,8 +1,19 @@
 import os
 import logging
+import re
 from datetime import datetime
+from typing import Dict, Any
+
+# Use python-telegram-bot v20.x
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
+from telegram.ext import (
+    ApplicationBuilder, 
+    CommandHandler, 
+    MessageHandler, 
+    CallbackQueryHandler, 
+    ContextTypes, 
+    filters
+)
 
 # Enable logging
 logging.basicConfig(
@@ -14,17 +25,19 @@ logger = logging.getLogger(__name__)
 # Get bot token from environment variable
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 if not BOT_TOKEN:
-    logger.error("TELEGRAM_BOT_TOKEN environment variable not set!")
-    exit(1)
+    logger.error("❌ TELEGRAM_BOT_TOKEN environment variable not set!")
+    raise ValueError("TELEGRAM_BOT_TOKEN is required")
 
-# Store user stats (in production, use a database)
-user_stats = {}
+# Store user stats (in-memory, resets on restart)
+user_stats: Dict[str, Dict[str, int]] = {}
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a welcome message when /start is issued."""
     user = update.effective_user
+    first_name = user.first_name if user else "User"
+    
     welcome_message = f"""
-👋 **Hello {user.first_name}!**
+👋 **Hello {first_name}!**
 
 Welcome to **Free Word Counter Bot**! 📊
 
@@ -65,7 +78,7 @@ Example: `/wordcount The quick brown fox jumps over the lazy dog`
         user_stats[user_id] = {'total_words': 0, 'total_messages': 0}
     user_stats[user_id]['total_messages'] += 1
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a help message when /help is issued."""
     help_text = """
 📖 **Help & Commands**
@@ -96,7 +109,7 @@ Simply send me any text message, and I'll automatically count:
     """
     await update.message.reply_text(help_text, parse_mode='Markdown')
 
-async def word_count_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def word_count_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /wordcount command."""
     # Get the text after the command
     text = update.message.text.replace("/wordcount", "", 1).strip()
@@ -120,6 +133,10 @@ async def word_count_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     lines = text.split('\n')
     line_count = len(lines)
     
+    # Count sentences
+    sentences = re.split(r'[.!?]+', text)
+    sentence_count = len([s for s in sentences if s.strip()])
+    
     response = f"""
 📊 **Word Count Results**
 
@@ -127,7 +144,8 @@ async def word_count_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 🔤 **Characters (with spaces):** {char_count}
 🔡 **Characters (without spaces):** {char_no_spaces}
 📏 **Lines:** {line_count}
-📎 **Characters per word:** {char_count/word_count:.1f}
+💬 **Sentences:** {sentence_count}
+📎 **Avg chars per word:** {char_no_spaces/word_count:.1f} 
     """
     
     await update.message.reply_text(response, parse_mode='Markdown')
@@ -138,7 +156,7 @@ async def word_count_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         user_stats[user_id]['total_words'] += word_count
         user_stats[user_id]['total_messages'] += 1
 
-async def char_count_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def char_count_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /charcount command."""
     # Get the text after the command
     text = update.message.text.replace("/charcount", "", 1).strip()
@@ -150,15 +168,12 @@ async def char_count_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return
     
-    # Count characters
+    # Count everything
     char_count = len(text)
     char_no_spaces = len(text.replace(" ", ""))
-    
-    # Count words
     word_count = len(text.split())
     
-    # Count sentences (split by . ! ?)
-    import re
+    # Count sentences
     sentences = re.split(r'[.!?]+', text)
     sentence_count = len([s for s in sentences if s.strip()])
     
@@ -169,7 +184,7 @@ async def char_count_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 🔡 **Characters (no spaces):** {char_no_spaces}
 📊 **Words:** {word_count}
 💬 **Sentences:** {sentence_count}
-📏 **Average word length:** {char_no_spaces/word_count:.1f} characters
+📏 **Avg word length:** {char_no_spaces/word_count:.1f} chars
     """
     
     await update.message.reply_text(response, parse_mode='Markdown')
@@ -180,7 +195,7 @@ async def char_count_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         user_stats[user_id]['total_words'] += word_count
         user_stats[user_id]['total_messages'] += 1
 
-async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show user statistics."""
     user_id = str(update.effective_user.id)
     
@@ -204,7 +219,7 @@ Keep using the bot to track more!
     
     await update.message.reply_text(response, parse_mode='Markdown')
 
-async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Show about information."""
     about_text = """
 ℹ️ **About Free Word Counter Bot**
@@ -222,18 +237,14 @@ This bot was created to help you quickly count words, characters, and more in an
 **Technical Details:**
 • Built with Python and python-telegram-bot library
 • Hosted on Railway
-• Open source on GitHub
 • Privacy-focused: No text is stored permanently
 
 **Creator:** @yourusername
-
-**Source Code:** [GitHub Repository](https://github.com/yourusername/freewordcounterbot)
 
 **Support:** For issues or suggestions, contact @yourusername
     """
     
     keyboard = [
-        [InlineKeyboardButton("⭐ Star on GitHub", url="https://github.com/yourusername/freewordcounterbot")],
         [InlineKeyboardButton("📝 Feedback", url="https://t.me/yourusername")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -244,7 +255,7 @@ This bot was created to help you quickly count words, characters, and more in an
         parse_mode='Markdown'
     )
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle any text message that is not a command."""
     text = update.message.text
     
@@ -260,11 +271,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lines = text.split('\n')
     line_count = len(lines)
     
-    # Detect language (simple check)
-    import re
+    # Detect language
     has_arabic = bool(re.search(r'[\u0600-\u06FF]', text))
     has_chinese = bool(re.search(r'[\u4e00-\u9fff]', text))
-    language = "Arabic" if has_arabic else "Chinese" if has_chinese else "English"
+    has_cyrillic = bool(re.search(r'[\u0400-\u04FF]', text))
+    
+    if has_arabic:
+        language = "Arabic"
+    elif has_chinese:
+        language = "Chinese"
+    elif has_cyrillic:
+        language = "Russian/Ukrainian"
+    else:
+        language = "English/Latin"
     
     response = f"""
 📊 **Analysis Results**
@@ -286,7 +305,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_stats[user_id]['total_words'] += word_count
     user_stats[user_id]['total_messages'] += 1
 
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle button presses from inline keyboards."""
     query = update.callback_query
     await query.answer()
@@ -347,13 +366,13 @@ Keep using the bot to track more!
             parse_mode='Markdown'
         )
 
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Log errors."""
     logger.error(f"Update {update} caused error {context.error}")
 
-def main():
+def main() -> None:
     """Start the bot."""
-    logger.info("Starting Free Word Counter Bot...")
+    logger.info("🚀 Starting Free Word Counter Bot...")
     
     # Create the Application
     app = ApplicationBuilder().token(BOT_TOKEN).build()
@@ -376,7 +395,7 @@ def main():
     app.add_error_handler(error_handler)
     
     # Start the bot using polling (no webhook needed)
-    logger.info("Bot is running and polling for updates...")
+    logger.info("✅ Bot is running and polling for updates...")
     app.run_polling()
     
 if __name__ == "__main__":
