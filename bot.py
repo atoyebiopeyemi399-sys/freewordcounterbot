@@ -1,17 +1,16 @@
 import os
 import logging
 import re
-from datetime import datetime
-from typing import Dict, Any
+from typing import Dict
 
-# Use python-telegram-bot v20.x
+# Use the latest python-telegram-bot
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    ApplicationBuilder, 
-    CommandHandler, 
-    MessageHandler, 
-    CallbackQueryHandler, 
-    ContextTypes, 
+    Application,
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    ContextTypes,
     filters
 )
 
@@ -121,19 +120,13 @@ async def word_count_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return
     
-    # Count words
+    # Count everything
     words = text.split()
     word_count = len(words)
-    
-    # Count characters
     char_count = len(text)
     char_no_spaces = len(text.replace(" ", ""))
-    
-    # Count lines
     lines = text.split('\n')
     line_count = len(lines)
-    
-    # Count sentences
     sentences = re.split(r'[.!?]+', text)
     sentence_count = len([s for s in sentences if s.strip()])
     
@@ -145,7 +138,7 @@ async def word_count_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 🔡 **Characters (without spaces):** {char_no_spaces}
 📏 **Lines:** {line_count}
 💬 **Sentences:** {sentence_count}
-📎 **Avg chars per word:** {char_no_spaces/word_count:.1f} 
+📎 **Avg chars per word:** {char_no_spaces/word_count:.1f}
     """
     
     await update.message.reply_text(response, parse_mode='Markdown')
@@ -158,7 +151,6 @@ async def word_count_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def char_count_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /charcount command."""
-    # Get the text after the command
     text = update.message.text.replace("/charcount", "", 1).strip()
     
     if not text:
@@ -168,12 +160,9 @@ async def char_count_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return
     
-    # Count everything
     char_count = len(text)
     char_no_spaces = len(text.replace(" ", ""))
     word_count = len(text.split())
-    
-    # Count sentences
     sentences = re.split(r'[.!?]+', text)
     sentence_count = len([s for s in sentences if s.strip()])
     
@@ -224,24 +213,16 @@ async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     about_text = """
 ℹ️ **About Free Word Counter Bot**
 
-This bot was created to help you quickly count words, characters, and more in any text.
+A free, powerful text analysis bot for Telegram.
 
 **Features:**
-• ✅ Word counting
-• ✅ Character counting (with/without spaces)
+• ✅ Word/Character counting
 • ✅ Line counting
-• ✅ Sentence detection
-• ✅ User statistics tracking
-• ✅ Completely free
+• ✅ Language detection
+• ✅ User statistics
+• ✅ Completely free!
 
-**Technical Details:**
-• Built with Python and python-telegram-bot library
-• Hosted on Railway
-• Privacy-focused: No text is stored permanently
-
-**Creator:** @yourusername
-
-**Support:** For issues or suggestions, contact @yourusername
+Built with ❤️ using Python
     """
     
     keyboard = [
@@ -333,7 +314,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode='Markdown'
         )
     elif data == 'stats':
-        # Show stats
         user_id = str(update.effective_user.id)
         if user_id not in user_stats or user_stats[user_id]['total_messages'] == 0:
             await query.edit_message_text(
@@ -374,8 +354,8 @@ def main() -> None:
     """Start the bot."""
     logger.info("🚀 Starting Free Word Counter Bot...")
     
-    # Create the Application
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    # Create the Application using the new API
+    app = Application.builder().token(BOT_TOKEN).build()
     
     # Add command handlers
     app.add_handler(CommandHandler("start", start))
@@ -394,7 +374,7 @@ def main() -> None:
     # Add error handler
     app.add_error_handler(error_handler)
     
-    # Start the bot using polling (no webhook needed)
+    # Start the bot using polling
     logger.info("✅ Bot is running and polling for updates...")
     app.run_polling()
     
